@@ -1,0 +1,264 @@
+<canvas id="mainCanvas" width="1600" height="900"></canvas>
+<script>
+	Fish = function(currentScene) {
+		let x = Math.random() * 1600;
+		let y = 100 + Math.random() * 800;
+
+		this.hungerMeter = 0.5;
+		this.hungerMeterTime = 30; // seconds for hungerMeter to go from 0 to full.
+		this.coinMeter = 0.5;
+		this.coinMeterTime = 15 // seconds for coinMeter to go from 0 to full.
+		this.drawNormal = function() {
+			mainCtx.fillStyle = 'rgb(255, 127.5, 0)';
+			mainCtx.fillRect(this.x - this.width / 2, this.y - this.height / 2, this.width, this.height);
+		}
+		this.drawHungry = function() {
+			mainCtx.fillStyle = 'rgb(255, 255, 0)';
+			mainCtx.fillRect(this.x - this.width / 2, this.y - this.height / 2, this.width, this.height);
+		}
+		this.drawDead = function() {
+			mainCtx.fillStyle = 'rgb(127, 127, 127)';
+			mainCtx.fillRect(this.x - this.width / 2, this.y - this.height / 2, this.width, this.height);
+		}
+
+		this.body = {
+			x: x,
+			y: 100,
+			width: 40,
+			height: 40,
+			dx: 0,
+			dy: 1000,
+			ddy: 0,
+			drawFn: this.drawNormal
+		}
+		currentScene.physics.groups.fish.push(this.body);
+	}
+
+	Fish.prototype.update = function() {
+		const timePassed = 16/1000;
+		this.hungerMeter += timePassed / 30;
+
+		if (this.hungerMeter > 2/3 && this.hungerMeter <= 1) {
+			this.body.drawFn = this.drawHungry;
+		} else if (this.hungerMeter > 1) {
+			this.body.drawFn = this.drawDead;
+			this.body.ddy = 50;
+			return;
+		}
+
+		this.coinMeter += timePassed / 15;
+		
+		if (this.coinMeter > 1) {
+			this.coinMeter = 0;
+			currentScene.physics.groups.coins.push({
+				x: this.body.x,
+				y: this.body.y,
+				width: 20,
+				height: 20,
+				dx: 0,
+				dy: 0,
+				ddy: 100,
+				drawFn: function() {
+					mainCtx.fillStyle = 'rgb(255, 255, 0)';
+					mainCtx.fillRect(this.x - this.width / 2, this.y - this.height / 2, this.width, this.height);
+				}
+			});
+		}
+
+		if (this.hungerMeter < 1/3) return;
+		if (currentScene.physics.groups.food.length == 0) return;
+		let closestFood =
+			currentScene.physics.groups.food.reduce((acc, food) => {
+				accDist = Math.pow(Math.pow(acc.x - this.body.x, 2) + Math.pow(acc.y - this.body.y, 2), 0.5);
+				foodDist = Math.pow(Math.pow(food.x - this.body.x, 2) + Math.pow(food.y - this.body.y, 2), 0.5);
+				if (accDist < foodDist) return acc;
+				return food;
+			});
+		if (closestFood.x - closestFood.width / 2 > this.body.x + this.body.width / 2) this.body.dx += 100 * 16/1000;
+		if (closestFood.x + closestFood.width / 2 < this.body.x - this.body.width / 2) this.body.dx += -100 * 16/1000;
+		if (closestFood.y - closestFood.height / 2 > this.body.y + this.body.height / 2) this.body.dy += 100 * 16/1000;
+		if (closestFood.y + closestFood.height / 2 < this.body.y - this.body.height / 2) this.body.dy += -100 * 16/1000;
+
+
+	}
+
+	const mainCanvas = document.getElementById('mainCanvas');
+	const mainCtx = mainCanvas.getContext('2d');
+
+	const currentScene = {
+		display: [],
+		physics: {
+			bounds: [0, 100, 1600, 800],
+			groups: {},
+			isOverlap: function (obj1, obj2) {
+				if (obj1.x - obj1.width / 2 < obj2.x + obj2.width / 2 &&
+						obj1.x + obj1.width / 2 > obj2.x - obj2.width / 2 &&
+						obj1.y - obj1.height / 2 < obj2.y + obj2.height / 2 &&
+						obj1.y + obj1.height / 2 > obj2.y - obj2.height / 2) {
+					return true;
+				}
+				return false;
+			},
+			physicsBody: function(config) {
+				this.x = config.x || 0;
+				this.y = config.y || 0;
+				this.width = config.width || 0;
+				this.height = config.height || 0;
+				this.dx = config.dx || 0;
+				this.dy = config.dy || 0;
+				this.ddy = config.ddy || 0;
+				this.drawFn = config.drawFn || function(x, y) {};
+			}
+		}
+	}
+
+	function create() {
+		currentScene.money = 200;
+		currentScene.display.push({
+			drawFn: function() {
+				let n = 450;
+				for (let i = 0; i < n; i++) {
+					mainCtx.fillStyle = 'rgb(0, 0, ' + ((n - i) * 255 / n) + ')';
+					mainCtx.fillRect(0, i * 900 / n, 1600, 900 / n);
+				}
+				mainCtx.fillStyle = 'rgb(127, 127, 127)';
+				mainCtx.fillRect(0, 0, 1600, 100);
+				mainCtx.fillStyle = 'rgb(255, 127, 000)';
+				mainCtx.fillRect(30, 30, 40, 40);
+				mainCtx.font = "30px Arial"
+				mainCtx.textAlign = 'center';
+				mainCtx.textBaseline = 'middle';
+				mainCtx.fillStyle = 'rgb(255, 255, 255)';
+				mainCtx.fillText('$' + currentScene.money, 800, 50);
+			}
+		});
+
+		currentScene.physics.groups.food = [];
+		currentScene.fish = [];
+		currentScene.physics.groups.fish = [];
+		for (let i = 0; i < 2; i++) {
+			currentScene.fish.push(new Fish(currentScene));
+		}
+		currentScene.physics.groups.coins = [];
+	}
+
+	function update() {
+
+		currentScene.fish.forEach((fish) => {	fish.update();	});
+
+		currentScene.fish.forEach((fish) => {
+			if (fish.hungerMeter < 1/3 || fish.hungerMeter > 1) return;
+			for (let foodIdx in currentScene.physics.groups.food) {
+				let food = currentScene.physics.groups.food[foodIdx];
+				if (currentScene.physics.isOverlap(fish.body, food)) {
+					fish.hungerMeter = 0;
+					fish.body.drawFn = fish.drawNormal;
+					currentScene.physics.groups.food.splice(foodIdx, 1);
+				}
+			}
+		});
+
+		for (let foodId in currentScene.physics.groups.food) {
+			let food = currentScene.physics.groups.food[foodId];
+			if (food.y > 900 - food.height && Math.abs(food.dy) < 1) {
+				currentScene.physics.groups.food.splice(foodId, 1); // Will probably bug
+			}
+		}
+
+		for (let coinId in currentScene.physics.groups.coins) {
+			let coin = currentScene.physics.groups.coins[coinId];
+			if (coin.y > 900 - coin.height && Math.abs(coin.dy) < 1) {
+				currentScene.physics.groups.coins.splice(coinId, 1); // Will probably bug
+			}
+		}
+
+		for (let fishId in currentScene.fish) {
+			let fish = currentScene.fish[fishId];
+			let fishBody = fish.body;
+			if (fish.hungerMeter > 1 && fish.body.y > 900 - fish.body.height && Math.abs(fish.body.dy) < 1) {
+				currentScene.fish.splice(fishId, 1); // Will probably bug
+				let fishBodyId = currentScene.physics.groups.fish.indexOf(fishBody);
+				currentScene.physics.groups.fish.splice(fishBodyId, 1);
+			}
+		}
+	}
+
+	function main() {
+		currentScene.display.forEach((i) => {
+			i.drawFn();
+		});
+		for (let groupName in currentScene.physics.groups) {
+			currentScene.physics.groups[groupName].forEach((i) => {
+				i.x += i.dx * 16 / 1000;
+				i.y += i.dy * 16 / 1000;
+				i.dx *= Math.pow(0.5, 16/1000);
+				i.dy *= Math.pow(0.5, 16/1000);
+				i.dy += i.ddy * 16 / 1000;
+			});
+			currentScene.physics.groups[groupName].forEach((i) => {
+				if (i.x - i.width / 2 < 0 && i.dx < 0) {
+					i.x = i.width / 2;
+					i.dx *= -0.5;
+				}
+				if (i.x + i.width / 2 > 1600 && i.dx > 0) {
+					i.x = 1600 - i.width / 2;
+					i.dx *= -0.5;
+				}
+				if (i.y - i.height / 2 < 100 && i.dy < 0) {
+					i.y = 100 + i.height / 2;
+					i.dy *= -0.5;
+				}
+				if (i.y + i.height / 2 > 900 && i.dy > 0) {
+					i.y = 900 - i.height / 2;
+					i.dy *= -0.5;
+				}
+			});
+			currentScene.physics.groups[groupName].forEach((i) => {
+				i.drawFn();
+			});
+		}
+		update();
+	}
+
+	create();
+
+	function clickHandler(event) {
+		if (event.offsetY < 100) {
+			if (currentScene.money >= 100) {
+				currentScene.money -= 100;
+				currentScene.fish.push(new Fish(currentScene));
+			}
+			return;
+		}
+		let clickedCoinIdx = currentScene.physics.groups.coins.findIndex((coin) => {
+			return (event.offsetX > coin.x - coin.width / 2 &&
+					event.offsetX < coin.x + coin.width / 2 &&
+					event.offsetY > coin.y - coin.height / 2 &&
+					event.offsetY < coin.y + coin.height / 2);
+		});
+		if (clickedCoinIdx != -1) {
+			currentScene.money += 25;
+			currentScene.physics.groups.coins.splice(clickedCoinIdx, 1);
+			return;
+		}
+		if (currentScene.money >= 5) {
+			currentScene.money -= 5;
+			currentScene.physics.groups.food.push(new currentScene.physics.physicsBody({
+				width: 10,
+				height: 10,
+				x: event.offsetX,
+				y: event.offsetY,
+				ddy: 50,
+				drawFn: function(x, y) {
+					mainCtx.fillStyle = 'rgb(255, 255, 255)';
+					mainCtx.fillRect(this.x - this.width / 2, this.y - this.height / 2, this.width, this.height);
+				}
+			}));
+		}
+	}
+
+	mainCanvas.addEventListener('mousedown', clickHandler);
+
+
+	setInterval(main, 16);
+</script>
