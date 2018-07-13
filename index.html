@@ -28,13 +28,28 @@ let Managers = {
 			if (!entity.movementComponent) return;
 			entity.positionComponent.x += entity.movementComponent.dx * 0.016;
 			entity.positionComponent.y += entity.movementComponent.dy * 0.016;
+
+			if (entity.positionComponent.x - entity.positionComponent.width / 2 < 0 && entity.movementComponent.dx < 0) {
+				entity.positionComponent.x = entity.positionComponent.width / 2;
+				entity.movementComponent.dx *= -0.5;
+			}
+			if (entity.positionComponent.x + entity.positionComponent.width / 2 > 1600 && entity.movementComponent.dx > 0) {
+				entity.positionComponent.x = 1600 - entity.positionComponent.width / 2;
+				entity.movementComponent.dx *= -0.5;
+			}
+			if (entity.positionComponent.y - entity.positionComponent.height / 2 < 100 && entity.movementComponent.dy < 0) {
+				entity.positionComponent.y = 100 + entity.positionComponent.height / 2;
+				entity.movementComponent.dy *= -0.5;
+			}
 			if (entity.positionComponent.y + entity.positionComponent.height / 2 > 900 && entity.movementComponent.dy > 0) {
 				entity.positionComponent.y = 900 - entity.positionComponent.height / 2;
 				entity.movementComponent.dy *= -0.5;
 			}
+
 			if (entity.positionComponent.y + entity.positionComponent.height / 2 < 900) {
 				entity.movementComponent.dy += entity.movementComponent.gravity * 0.016;
 			}
+
 			entity.movementComponent.dx *= Math.pow(1 - entity.movementComponent.drag, 0.016);
 			entity.movementComponent.dy *= Math.pow(1 - entity.movementComponent.drag, 0.016);
 		}
@@ -260,6 +275,17 @@ let main = function() {
 		}
 	}
 	entities.forEach((entity) => Managers.Logic.manage(entity, entities));
+
+	// Placeholder at-rest deletion function
+	entities.forEach((entity) => {
+		if (entity instanceof Coin ||
+				entity instanceof Food ||
+				(entity instanceof Fish && entity.logicComponent.hungerMeter > 1)) {
+			if (entity.positionComponent.y >= 900 - entity.positionComponent.height / 2 && Math.abs(entity.movementComponent.dy) < 1) {
+				entity.inactive = true;
+			}
+		}
+	});
 
 	entities = entities.filter((entity) => !entity.inactive);
 
