@@ -1,5 +1,192 @@
 <canvas id="mainCanvas" width="1600" height="900"></canvas>
 <script>
+let Managers = {
+	Position: {
+		Component: function(x, y, width, height) {
+			this.x = x;
+			this.y = y;
+			this.width = width;
+			this.height = height;
+		}
+	},
+	Rendering: {
+		Component: function(drawFn) {
+			this.drawFn = drawFn;
+		},
+		manage: function(entity) {
+			entity.renderingComponent.drawFn(entity.positionComponent);
+		}
+	},
+	Movement: {
+		Component: function(dx, dy, gravity, drag) {
+			this.dx = dx;
+			this.dy = dy;
+			this.gravity = gravity;
+			this.drag = drag;
+		},
+		manage: function(entity) {
+			if (!entity.movementComponent) return;
+			entity.positionComponent.x += entity.movementComponent.dx * 0.016;
+			entity.positionComponent.y += entity.movementComponent.dy * 0.016;
+			if (entity.positionComponent.y + entity.positionComponent.height / 2 > 900 && entity.movementComponent.dy > 0) {
+				entity.positionComponent.y = 900 - entity.positionComponent.height / 2;
+				entity.positionComponent.dy = 0;
+			}
+			if (entity.positionComponent.y + entity.positionComponent.height / 2 < 900) {
+				entity.movementComponent.dy += entity.movementComponent.gravity * 0.016;
+			}
+			entity.movementComponent.dx *= Math.pow(1 - entity.movementComponent.drag, 0.016);
+			entity.movementComponent.dy *= Math.pow(1 - entity.movementComponent.drag, 0.016);
+		}
+	},
+	Overlap: {
+		Component: function(overlapFn) {
+			this.overlapFn = overlapFn;
+		},
+		manage: function(entity1, entity2) {
+			if (!entity1.overlapComponent) return;
+			if (!entity2.overlapComponent) return;
+			let pc1 = entity1.positionComponent;
+			let pc2 = entity2.positionComponent;
+			if (pc1.x - pc1.width / 2 < pc2.x + pc2.width / 2 &&
+					pc1.x + pc1.width / 2 > pc2.x - pc2.width / 2 &&
+					pc1.y - pc1.height / 2 < pc2.y + pc2.height / 2 &&
+					pc1.y + pc1.height / 2 > pc2.y - pc2.height / 2) {
+				entity1.overlapComponent.overlapFn(entity1, entity2);
+				entity2.overlapComponent.overlapFn(entity2, entity1);
+			}
+		}
+	},
+	Logic: {
+		Component: function(logicFn) {
+			this.logicFn = logicFn;
+		},
+		manage: function(entity, entities) {
+			if (!entity.logicComponent) return;
+			entity.logicComponent.logicFn(entity, entities);
+		}
+	}
+}
+
+let Food = function(x, y) {
+	this.inactive = false;
+	this.positionComponent =
+		new Managers.Position.Component(x, y, 10, 10);
+	this.renderingComponent =
+		new Managers.Rendering.Component(function(positionComponent) {
+			mainCtx.fillStyle = 'rgb(255, 255, 255)';
+			mainCtx.fillRect(
+					positionComponent.x - positionComponent.width / 2,
+					positionComponent.y - positionComponent.height / 2,
+					positionComponent.width, positionComponent.height);
+		});
+	this.movementComponent =
+		new Managers.Movement.Component(0, 0, 50, 0);
+	this.overlapComponent =
+		new Managers.Overlap.Component(function(thisEntity, otherEntity) {
+			if (otherEntity instanceof Fish) {
+				if (thisEntity.inactive == false) {
+					thisEntity.inactive = true;
+					console.log('Food eaten');
+				}
+			}
+		});
+}
+
+
+let Fish = function() {
+	this.inactive = false;
+	this.positionComponent =
+		new Managers.Position.Component(Math.random() * 1600, 100, 40, 40);
+	this.renderingComponent =
+		new Managers.Rendering.Component(function(positionComponent) {
+			mainCtx.fillStyle = 'rgb(255, 127, 0)';
+			mainCtx.fillRect(
+					positionComponent.x - positionComponent.width / 2,
+					positionComponent.y - positionComponent.height / 2,
+					positionComponent.width, positionComponent.height);
+			mainCtx.strokeStyle = 'rgb(255, 0, 0)';
+			mainCtx.strokeRect(
+					positionComponent.x - positionComponent.width / 2,
+					positionComponent.y - positionComponent.height / 2,
+					positionComponent.width, positionComponent.height);
+		});
+	this.movementComponent =
+		new Managers.Movement.Component(0, 1000, 50, 0);
+	this.overlapComponent =
+		new Managers.Overlap.Component(function(thisEntity, otherEntity) {
+			if (otherEntity instanceof Food) {
+				console.log('Fish fed');
+			}
+		});
+	this.logicComponent =
+		new Managers.Logic.Component(function(thisEntity, entities) {
+			thisEntity.positionComponent.y -= entities.length;		
+		});
+}
+
+const mainCanvas = document.getElementById('mainCanvas');
+const mainCtx = mainCanvas.getContext('2d');
+
+let entities = []
+
+let create = function() {
+	entities.push({
+		inactive: false,
+		positionComponent: new Managers.Position.Component(800, 450, 1600, 900),
+		renderingComponent: new Managers.Rendering.Component(function(positionComponent) {
+			let n = 100;
+			for (let i = 0; i < n; i++) {
+				mainCtx.fillStyle = 'rgb(0, 0, ' + ((n - i) * 255 / n) + ')';
+				mainCtx.fillRect(
+					positionComponent.x - positionComponent.width / 2,
+					i * positionComponent.height / n,
+					positionComponent.width,
+					positionComponent.height / n);
+			}
+			mainCtx.fillStyle = 'rgb(127, 127, 127)';
+			mainCtx.fillRect(0, 0, positionComponent.width, 100);
+			mainCtx.fillStyle = 'rgb(255, 127, 000)';
+			mainCtx.fillRect(30, 30, 40, 40);
+			//mainCtx.font = "30px Arial"
+			//mainCtx.textAlign = 'center';
+			//mainCtx.textBaseline = 'middle';
+			// mainCtx.fillStyle = 'rgb(255, 255, 255)';
+			// mainCtx.fillText('$' + currentScene.money, 800, 50);
+		})
+	});
+}
+
+let main = function() {
+	entities.forEach((entity) => Managers.Rendering.manage(entity));
+	entities.forEach((entity) => Managers.Movement.manage(entity));
+	for (let i = 0; i < entities.length; i++) {
+		for (let j = i + 1; j < entities.length; j++) {
+			Managers.Overlap.manage(entities[i], entities[j]);
+		}
+	}
+	entities.forEach((entity) => Managers.Logic.manage(entity, entities));
+
+	entities = entities.filter((entity) => !entity.inactive);
+
+}
+
+create();
+
+setInterval(main, 16);
+
+function clickHandler(event) {
+	if (event.offsetY < 100) {
+		entities.push(new Fish());
+		return;
+	}
+	entities.push(new Food(event.offsetX, event.offsetY));
+}
+
+mainCanvas.addEventListener('mousedown', clickHandler);
+
+			
+	/*
 	Fish = function(currentScene) {
 		let x = Math.random() * 1600;
 		let y = 100 + Math.random() * 800;
@@ -78,12 +265,7 @@
 		if (closestFood.x + closestFood.width / 2 < this.body.x - this.body.width / 2) this.body.dx += -100 * 16/1000;
 		if (closestFood.y - closestFood.height / 2 > this.body.y + this.body.height / 2) this.body.dy += 100 * 16/1000;
 		if (closestFood.y + closestFood.height / 2 < this.body.y - this.body.height / 2) this.body.dy += -100 * 16/1000;
-
-
 	}
-
-	const mainCanvas = document.getElementById('mainCanvas');
-	const mainCtx = mainCanvas.getContext('2d');
 
 	const currentScene = {
 		display: [],
@@ -261,4 +443,5 @@
 
 
 	setInterval(main, 16);
+	*/
 </script>
